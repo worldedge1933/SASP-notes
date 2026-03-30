@@ -1,4 +1,4 @@
-// -----------------
+﻿// -----------------
 // Cover
 // -----------------
 #set page(
@@ -96,233 +96,264 @@
   #it
 ]
 
+#let note(body) = [
+  #text(fill: gray)[注：#body]
+]
 
-= Chapter 1: Sinusoidal analysis and modeling
 
+= Chapter 1 Sinusoidal analysis and modeling
 
 == 1. Intro
 
-将声音信号解耦为准正弦分量与瞬态分量，是一种常见的分析思路。
+将声音分解为正弦波之和，再在频域上寻峰是一种常见的分析手段。
 
-常用分析方法包括：
-
+有两种常见手段：
 - STFT（短时傅里叶变换）
 - Filter bank（滤波器组）
 
-=== 分辨正弦峰
+== 分辨正弦峰
 
-== 2. 窗的频谱
+== 2. 窗的效应
 
-时域上乘窗等价于频域上的卷积：
+时域上乘窗等价于频域上卷积
 
-$
-  X_w(omega) = X(omega) * W(omega)
-$
+#note[卷积算子 $T_W(X) = X * W$ 不是单射，存在零空间，即存在不为零的 $D$ 使得 $T_W(D) = 0$，两个不同的函数乘窗后可能会变得一样即说明了这一点。]
 
-因此，窗函数会改变频谱峰的外观。主瓣决定分辨能力，旁瓣会带来谱泄漏；如果两个频率分量距离过近，就会难以在频域上分开。
+由于窗口函数频谱的形状特性（主瓣有一定宽度），导致原函数中相近的峰难以被区分。
 
-== 3. 常用窗的主瓣宽度
+== 3. 窗的主瓣宽度
 
-不同窗函数的主瓣宽度不同，典型结果可记为：
-
-- Rectangular: $4 pi / M approx 2 Omega_M$
-- Bartlett: $8 pi / M approx 4 Omega_M$
-- Hann: $8 pi / M approx 4 Omega_M$
-- Hamming: $8 pi / M approx 4 Omega_M$
-- Blackman: $12 pi / M approx 6 Omega_M$
-
-其中，$M$ 为采样点数，$Omega_M$ 表示 DFT 栅格间隔。
-
-== 4. 频率区分
-
-#figure(
-  rect(
-    width: 100%,
-    height: 36mm,
-    stroke: 0.6pt,
-    inset: 8pt,
-  )[
-    #align(center)[窗函数频谱示意占位]
-  ],
+#table(
+  columns: 2,
+  align: (left, left),
+  stroke: 0.6pt,
+  inset: (x: 6pt, y: 7pt),
+  table.header[*Window*][*Main-lobe width*],
+  [Rectangular], [$(4 pi) / (M-1) approx 2 Omega_M$],
+  [Hamming], [$(8 pi) / M approx 4 Omega_M$],
+  [Bartlett], [$(8 pi) / M approx 4 Omega_M$],
+  [Blackman], [$(12 pi) / M approx 6 Omega_M$],
+  [Hann], [$(8 pi) / M approx 4 Omega_M$],
 )
 
-若要区分两个相近的正弦频率，频谱分辨率需要满足：
+$M$ 是采样点数，$Omega_M$ 是 DFT 格点长，$Omega_M = (2 pi) / M$，$Delta f = F_s / M$。
+
+== 4. 窗长度选择
+
+#figure(
+  image("media/Chap1/window_length.png", width: 70%),
+)
+
+如果要让相邻的峰能被分辨，需要有：
 
 $
   B_w <= Delta f
 $
 
-其中 $B_w$ 为主瓣宽度。若写成 $B_w = L Delta f$，则窗长需要足够大；主瓣越窄，所需的 $M$ 通常越大。
+$B_w$ 是主瓣宽度。若 $B_w = L F_s/M$
+
+$
+  => M >= L F_s / (Delta f)
+$
+
+$Delta f$ 越小，需要的 $M$ 越大。
 
 == 5. Zero padding
 
-Zero padding 是一种提高 FFT 频率采样密度的方法。
+Zero padding 是一种用于提高 FFT 分辨率的方法。
 
-原始长度为 $N$ 时：
+在时域信号后补零，拓宽窗口。
 
-$
-  X[k] = sum_(n=0)^(N-1) x[n] e^(-j 2 pi k n / N)
-$
-
-若在时域末尾补零，并把长度扩展到 $N' > N$，则有：
+为何补0不会改变频谱，从数学上非常好理解：
 
 $
-  X'[k] = sum_(n=0)^(N-1) x[n] e^(-j 2 pi k n / N')
+  X[k] = sum_(n=0)^(N-1) x[n] e^(-j (2 pi) / N k n)
 $
 
-补零不会提升真实频率分辨率，但会让频谱采样更密，从而便于观察峰值位置。
+补的 0 对求和的贡献为 0
+
+假设补 $J - 1$ 倍长，\$N' = J N\$，则
+
+$
+  X'[k] = sum_(n=0)^(N-1) x[n] e^(-j (2 pi) / (J N) k n) = X[k / J]
+$
+
+补 0 的频谱对原频谱的补充
 
 == 6. Parabolic interpolation
 
-抛物线插值是一种估计更精确谱峰位置的方法，可在单个峰值附近利用二次曲线近似来细化峰值位置。
+抛物线插值是一种估计更精确峰值位置的方法。\
+在峰值附近3个点做抛物线拟合。
 
-通常它能改善读数精度，但对噪声与混叠较为敏感，不能简单理解为严格意义上的最优估计。
+#note[一般只对幅度谱适用。且幅度谱形状和相位谱无关联，
+  不能认为幅度峰值位置也有相位谱峰。]
 
-=== 加法合成分析技术
+== 加法合成分析技术
 
-== 7. 加法合成
-
-加法合成将信号表示为一组随时间缓慢变化的正弦分量之和：
+== 7. 加法合成（振荡器组）
 
 $
-  y(t) = sum_(i=1)^N A_i(t) sin(omega_i(t) t + phi_i(t))
+  y(t) = sum_i A_i (t) sin[omega_i (t)t + phi_i (t)]
 $
 
 == 8. 从 STFT 数据用谐波模型合成
 
-从 STFT 数据重建谐波模型时，通常会遇到两个问题：
+有两个问题：
 
-- 帧内参数的离散化误差
-- 帧间参数不连续
+- 帧内数据过多
+- 帧间不连续
 
-常见做法是使用 peak tracking，在相邻分析帧之间关联谱峰，并在重叠区域平滑频率与相位。
+解决方法，Peak tracking：\
+在帧内找峰，帧间对峰连线；\
+除瞬态外往往只需要幅度和频率信息。
 
 == 9. Sines + Noise Modeling
 
-为了更好地刻画语音或乐器信号，常将模型写为：
+为模拟真实声音，往往引入噪声建模
 
 $
-  s(t) = sum_(r=1)^R A_r(t) cos(theta_r(t)) + e(t)
+  s(t) = sum_(i=1)^R A_i (t) cos(theta_i (t)) + e(t)
 $
 
-其中 $e(t)$ 用于描述随机噪声项，或未被谐波分量解释的残差信号。
+$e(t)$ 是用白噪声通过一个时变滤波器得到的
 
-
-=== Vocoder and phase processing
 
 == 10. Vocoder
 
-使用声码器思想组合或修改频率分量时，可将每个分量写成：
+用滤波器组结果驱动振荡器组
 
 $
-  x_k(t) = A_k(t) cos(omega_k t + phi_k(t))
+  x_k (t) = a_k (t) cos[omega_k t + phi.alt_k(t)]
 $
 
-若保持包络基本不变，而只修改瞬时角频率，则有：
+看起来频率并经调制，但实际上有
 
 $
-  Delta omega_k(t) = (dif phi_k(t)) / (dif t)
+  Delta omega_k = (dif phi.alt_k (t)) / (dif t)
 $
 
-因此可以通过调节相位演化速度来实现变调或频率偏移，同时尽量保持音色特征。
-
-=== Channel vocoder
-
-Channel vocoder 是一种早期语音压缩与重建技术。它在分析阶段强调各频带的幅度包络，而对相位信息保留较少，因此瞬态细节通常会受到影响。
-
-原始信号经分带、整流和低通滤波后，可以得到每个通道的慢变化包络，并将其用于后续重建。
-
-== 11. 带限信号正交化
-
-设窄带信号为：
+所以也可以有
 
 $
-  x_k(t) = A_k(t) cos(omega t + phi_k(t))
+  x_k (t) = A_k (t) cos([omega_k + Delta omega_k (t)] t)
 $
 
-将其写成复指数形式：
+数学上等价，但工程上常用后者
+
+== 10. Channel vocoder
+
+一种早期语音压缩重建技术
+
+在 vocoder 完全舍弃相位（瞬态频率），只用幅度。
+
+#note[一个信号经过绝对值，再经过一个低通滤波
+  得到其幅度包络。]
+
+== 11. 窄带信号理论
+
+假设一个信号是窄带的，其可写作
 
 $
-  x_k(t) = (A_k(t) / 2) e^(j (omega t + phi_k(t))) + (A_k(t) / 2) e^(-j (omega t + phi_k(t)))
+  x_k (t) = a_k (t) cos(omega_k t + phi.alt_k (t))
 $
 
-仅保留正频率项后，可得解析信号（analytic signal）：
+由欧拉公式可知，
 
 $
-  x_k^a(t) = A_k(t) e^(j (omega t + phi_k(t)))
+  x_k (t) = (a_k (t))/2 e^(j(omega_k t + phi.alt_k (t))) + a_k(t)/2 e^(-j(omega_k t + phi.alt_k (t)))
 $
 
-再通过频移到基带，可得：
+只保留正频率，消去负频率项，得到解析信号（analytic signal）
 
 $
-  x_k^b(t) = e^(-j omega t) x_k^a(t) = A_k(t) e^(j phi_k(t))
+  x_k^a (t) = a_k (t) e^(j(omega_k t + phi.alt_k (t)))
+$
+
+再将频率中心移到 0，得
+
+$
+  x_k^m (t) = e^(-j omega_k t) x_k^a(t) = a_k (t) e^(j phi.alt_k (t))
 $
 
 == 12. 希尔伯特变换
 
-Hilbert 变换的作用可以理解为对信号施加 $90 deg$ 的相移滤波。
+Hilbert 变换的本质是全通 $plus.minus 90 deg$ 相移滤波器。
 
-其频域响应常写为：
-
-$
-  G_H(f) = -j "sgn"(f)
-$
-
-对应的时域卷积核为：
+其频域为
 
 $
-  g_H(t) = 1 / (pi t)
+  G_H(f) = -j "sgn"(f) = e^(-j pi/2 "sgn"(f))
 $
 
-因此，
+时域
 
 $
-  H(x(t)) = x(t) * (1 / (pi t))
+  g_H (t) = 1 / (pi t)
 $
 
-解析信号可表示为：
+因此 Hilbert 变换为
 
 $
-  x_a(t) = x(t) + j hat(x)(t)
+  hat(x) = HH [x(t)] = x(t) * 1/(pi t)
 $
 
-其中 $hat(x)(t)$ 为 $x(t)$ 的 Hilbert 变换。
-
-== 13. Phase vocoder
-
-相位声码器的核心在于跟踪复谱相位，并利用相位导数估计瞬时频率。
-
-若复分析信号写为：
+如果我们已知信号的 analytic signal
 
 $
-  x_a(t) = a(t) e^(j (omega t + phi(t))) = x(t) + j y(t)
+  hat(x)(t) = Im[x_a (t)], x_a (t) = x(t) + j H[x(t)]
 $
 
-则其幅度与相位分别为：
+且有
 
 $
-  a(t) = |x_a(t)|
+  1/(G_H (f)) = j "sgn"(f) = -G_H (f)
 $
 
-$
-  phi(t) = "arg"(x_a(t)) - omega t
-$
+== 13. Phase vocoder：相位声码器
 
-瞬时频率可写成：
+对于实信号 $x(t)$，有 $x(t) = Re[x_k^a (t)]$
 
-$
-  omega_i(t) = omega + (dif phi(t)) / (dif t)
-$
-
-当 $x_a(t) = x(t) + j y(t)$ 时，相位导数满足：
+经 Hilbert 变换，有
 
 $
-  (dif phi(t)) / (dif t) = (x(t) y'(t) - y(t) x'(t)) / (x(t)^2 + y(t)^2)
+  Im[x_k^a (t)] = H[x(t)]
 $
 
-这来自于反正切求导公式：
+于是
+$
+  x_k^a(t) = Re[x_k^a(t)] + j Im[x_k^a(t)] = a_k (t)e^(j(omega_k t + phi.alt_k(t)))
+$
+
+
+则
 
 $
-  (dif (arctan x)) / (dif t) = (1 / (1 + x^2)) (dif x) / (dif t)
+  cases(
+    a_k (t) = |x_k^a (t)|,
+    phi.alt_k (t) = angle(x_k^a (t)) - omega_k t = tan^(-1)(Im[x_k^a (t)] / Re[x_k^a (t)]) - omega_k t
+  )
 $
 
+
+或
+
+$
+cases(
+  a_k (t) = |x_k^m (t)|,
+  phi.alt_k (t) = angle(x_k^m (t)) = tan^(-1)(Im[x_k^a (t)] / Re[x_k^a (t)])
+)
+$
+
+不过不常用，因为反三角函数的计算成本很高
+
+一般用 $Delta omega_k (t) = (dif) / (dif t) phi.alt_k (t)$ 求瞬时频率
+
+$
+  Delta omega_k (t) = (x y' - y x') / (x^2 + y^2)
+  quad (x in Re{}, y in Im{})
+$
+
+
+#note[$
+  (dif tan^(-1) x) / (dif t) = 1/(1+x^2)
+$]
