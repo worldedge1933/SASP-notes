@@ -82,6 +82,12 @@
 
 #set text(size: 10.5pt)
 #set par(justify: true, leading: 0.65em)
+#let chapter = state("chapter", 0)
+#set math.equation(
+  numbering: (..nums) => context {
+    numbering("(1.1)", chapter.get(), ..nums)
+  },
+)
 
 #show heading.where(level: 1): set block(below: 2em, above: 2em)
 #show heading.where(level: 2): set block(below: 1.5em, above: 2em)
@@ -92,6 +98,8 @@
 #show heading.where(level: 3): set text(weight: "regular")
 
 #show heading.where(level: 1): it => [
+  #context chapter.update(n => n + 1)
+  #counter(math.equation).update(0)
   #colbreak(weak: true)
   #it
 ]
@@ -357,3 +365,433 @@ $
 #note[$
   (dif tan^(-1) x) / (dif t) = 1/(1+x^2)
 $]
+
+
+
+= Chapter 7 Linear predictive coding
+
+== 1. 自回归模型
+
+当前值视作 $p$ 个旧的值的线性组合（FIR）
+
+$
+  s(n) approx sum_(k=1)^p a_k s(n-k)
+$
+
+#note[$A_k$ 一般只在分析窗内视作是常数]
+
+当然，真实世界往往还有噪音，于是
+
+$
+  s(n) = sum_(k=1)^p a_k s(n-k) + G u(n)
+$
+
+$u(n)$ : 白噪音，激励
+
+#note[必须有白噪，否则要么简单振荡，要么衰减至0或无穷发散]
+
+现在我们将其转移到 $z$ 域上
+
+$
+  S(z) eq sum_(k=1)^p a_k z^(-k) S(z) + G U(z)
+$
+
+于是定义如下
+
+$
+  H(z) eq.delta S(z) / (G U(z)) = 1 / (1 - sum_(k=1)^p a_k z^(-k)) eq.delta 1 / A(z)
+$
+
+$
+  A(z) eq.delta 1 - sum_(k=1)^p a_k z^(-k)
+$
+
+$H(z)$ 是一个全极点滤波器
+
+== 2. LPC 预测器
+
+于是我们可以有一个线性预测器，并得到对 $s$ 的估计
+
+$
+  hat(s)(n) eq.delta sum_(k=1)^p a_k s(n-k)
+$
+
+于是，我们有误差
+
+$
+  e(n) eq.delta s(n) - hat(s)(n) = s(n) - sum_(k=1)^p a_k s(n-k)
+$
+
+$
+  E(z) = (1 - sum_(k=1)^p a_k z^(-k)) S(z) = A(z) S(z) = S(z) / H(z)
+$
+
+其中
+
+$A(z)$: Inverse filter / Whitening filter
+
+$H(z)$: Forward filter / Shaping filter
+
+$
+  P(z) eq.delta sum_(k=1)^p a_k z^(-k)
+$
+
+$P(z)$: prediction filter
+
+$
+  A(z) = 1 - P(z)
+$
+
+且有
+
+$
+  e(n) = G u(n)
+$
+
+#note[LPC 的本质是：找一个滤波器，使得输出误差尽可能像白噪声；或：把信号中的“结构”全部提取出来，剩下的应该是“无结构”的随机噪声]
+
+== 3. 求解 LPC 参数
+
+求解 LPC 参数可以转化为以下优化目标
+
+$
+  min_(a_k) E[ |s(n) - hat(s)(n)|^2]
+$
+
+#figure(
+  image("media/Chap7/LPC_model.png", width: 100%),
+)
+
+#note[注意观察这里系数编号和一般版本的区别。]
+
+于是这个问题可以转化为 Wiener-Hopf 方程
+
+$
+  sum_(k=1)^p a_k r(i-k) = r(i), quad i = 1,2,3,...,p
+$
+
+写成矩阵形式为
+
+$
+  bold(upright(a)) = bold(upright(R))^(-1) bold(upright(r))
+$
+
+其中
+
+$
+  bold(upright(R))=mat(
+    delim: "[",
+    r(0), r(1), dots, r(p-1);
+    r(1), r(0), dots, r(p-2);
+    dots.v, dots.v, dots.down, dots.v;
+    r(p-1), r(p-2), ..., r(0)
+  )
+$
+$
+  bold(upright(a)) = mat(
+    delim: "[",
+    a_1;
+    dots.v;
+    a_p
+  )
+$
+$
+  bold(upright(r)) =
+  mat(
+    delim: "[",
+    r(1);
+    dots.v;
+    r(p)
+  )
+$
+
+并有
+
+$
+  D_p & = E_min = sigma^2 - bold(upright(r))^T bold(upright(R))^(-1) bold(upright(r)) \
+      & = r(0) - bold(upright(r))^T bold(upright(a)) \
+      & = r(0) - sum_(k=1)^p a_k r(k)
+$
+
+#note[$sigma$ 是输入信号的方差，也即 $r(0)$]
+
+我们引入新概念：prediction gain
+
+$
+  G_p = sigma^2 / D_p
+$
+
+$G_p -> oo$，$s(n)$ 很好预测
+
+$G_p -> 1$，$s(n)$ 无法预测（如白噪声）
+
+== 4. 白化原因推导
+
+我们假设有一理想无限长 LP
+
+$
+  s(n) = sum_(k=1)^infinity a_k s(n-k)
+$
+
+由正交原理有
+
+$
+  E[e_o(n) s(n-i)] = 0, quad i = 1,2,...,oo
+$
+
+于是
+
+$
+  r_e_o (i) & = E[e_o (n)e_o (n-i)] \
+            & = E[e_o (n)[s(n-i) - hat(s)_o (n-i)]] \
+            & = E[e_o (n)s(n-i)] - E[e_o (n) sum_(k=1)^infinity a_k s(n-i-k)] \
+            & = E[e_o (n)s(n-i)] - sum_(k=1)^infinity a_k E[e_o (n)s(n-i-k)] \
+            & = 0 - sum_(k=1)^infinity a_k * 0 \
+            & = 0, quad forall i > 0
+$
+
+由于自相关函数为偶函数，因此对 $i < 0$ 同样成立
+
+$
+  r_e_o (0) = D_p
+$
+
+$
+  r_e_o (i) = 0, quad i != 0
+$
+
+而这正是白噪声的定义
+
+#note[这一性质只对无限长滤波器严格成立。]
+
+== 5. LPC 的一些性质
+
+- $A(z)$ 是 minimum-phase，零点在单位圆内，保证稳定
+- 可用 Levinson-Durbin 快速求解
+
+== 6. LPC 的功率谱包络性质
+
+当 LPC 阶数增高时，有
+
+$
+  lim_(p -> oo) |hat(S)_n (omega)|^2 = |S_n (omega)|^2
+$
+
+#note[对复数，$|X| = |Y|$ 不能推出 $X = Y$。]
+
+即 $hat(S)$ 的功率谱是 $S$ 的包络，并逐渐趋近于 $S$
+
+这个包络在峰处跟踪效果较好，在谷处差
+
+== 7. LPC 的阶数选取
+
+$p$ 决定了频谱拟合的光滑程度
+- $p$ 小，功率谱粗略包络，细节不足，抓大轮廓
+- $p$ 大，过拟合
+
+因为 $H$ 是一个全极点滤波器，且极点数量是 $p$
+
+语音经验公式为
+
+$
+  F_s / 1000 <= p <= F_s / 1000 + 4
+$
+
+== 8. 频率选择性 LPC
+
+我们可以构造出一种 LPC，使其只关心部分频率。\
+基本思想：频率映射
+
+$
+  omega in [2 pi f_A, 2 pi f_B] -> omega' in [0, 2pi]
+$
+
+#note[原笔记此处还有一段与 $x[n]$ 相关的映射说明，但手写辨识不够稳定，暂不擅自补写。]
+
+只需使用以下新定义的自相关函数
+
+$
+  r_n'(k) = 1/(2 pi) integral_(-pi)^(pi) |S_n (omega ')|^2 e^(j omega' k) dif omega
+$
+
+
+= Chapter 11 Digital Audio Restoration
+
+声音修复（Audio Restoration）是指对受损或退化的音频信号进行处理，以恢复其原始质量和清晰度的过程或对其进行降噪的过程。
+
+音频质量劣化的类型往往包括：
+- 局部劣化：如点击声、爆音、咔嗒声等；
+- 全局劣化：如背景噪声、震荡，或某些类型的非线性失真等。
+
+== 全局劣化修复
+
+== 1. 维纳滤波
+
+维纳滤波的模型如下图所示
+
+#figure(
+  image("media/Chap11/wiener_model.png", width: 70%),
+)
+
+其中 $s$ 是想要恢复的原始信号，$n$ 是噪声，$x$ 是观测到的受噪声污染的信号，$y = hat(s)$ 是滤波器输出的估计信号。
+
+维纳滤波的目标是找到一个线性滤波器 $h$，使得输出信号 $y$ 与原始信号 $s$ 之间的均方误差最小化：
+
+$
+  text("MSE") = E [(s-y)^2]
+$
+
+在 Chapter 4 中，我们已经介绍了正交原理及其推论，即当误差最小时，误差与观测信号正交，即
+
+$
+  e = (s-y) perp x
+$
+
+也即
+
+$
+  E [(s(n)-y(n))x(m)] = 0, forall m, n
+$ <eq:orth_principle>
+
+将 @eq:orth_principle 展开，我们得到
+
+$
+  E [ s(n)x(m)] = E [y(n)x(m)]
+$
+
+于是
+
+$
+  r_(s x) (n - m) = & E[sum_k h(k) x(n-k) x(m)] \
+                  = & sum_k h(k) r_x (n - m - k)
+$
+
+换元简化形式可得
+
+$
+  r_(s x) (n) = sum_k h(k) r_x (n - k)
+$
+
+转到时域有
+
+$
+  H(omega) = (R_(s x) (omega)) / (R_x (omega))
+$
+
+
+事实上，由于 s 和 v 不相关，于是有
+
+$
+  r_(s x) (n) & = E[ s(k) x(k+n)] \
+              & = E[ s(k) (s(k+n) + v(k+n))] \
+              & = E[ s(k) s(k+n)] + E[ s(k) v(k+n)] \
+              & = E[ s(k) s(k+n)] + 0 \
+              & = r_s (n)
+$
+
+对 $r_x$ 也进行类似分析，最终得到
+
+$
+  H(omega) = (R_s (omega)) / (R_s (omega) + R_v (omega))
+$
+
+#note[一个信号的自相关函数的频谱是其本身的功率谱，即
+  $
+    R_s(omega) = |S(omega)|^2 = P_s(omega)
+  $
+]
+
+由此，我们就得到了标准的维纳滤波器频率响应。这样的滤波器的结果是最小均方误差（MMSE）的，同时由于这个滤波器的频率响应为实数（且为正值），所以其不会引入任何额外的相位变化。使用这样一种滤波器所依据的前提是，信号 s 和噪声 v 的功率谱是已知或能用某种方法估计的。
+
+上述推导有一个未提到的大前提：s 和 v 是均值为 0 的随机过程，如果它们的均值不为 0，那么维纳滤波器需要转变为以下结构
+
+#figure(
+  image("media/Chap11/non_zero_mean_wiener.png", width: 70%),
+)
+
+其中，$m_s$ 和 $m_v$ 分别是信号 s 和噪声 v 的均值。对于非零均值的情况，维纳滤波器需要先对输入信号进行去均值处理，即从观测信号 x 中减去均值 $m_s + m_v$，然后再进行线性滤波，最后再加上信号的均值 $m_s$ 来得到最终的估计结果。
+
+对于高信噪比（$P_s >> P_v$）的情况，维纳滤波器的响应倾向于 1，几乎不对信号进行衰减；而对于低信噪比（$P_s << P_v$）的情况，维纳滤波器的响应倾向于 0，几乎完全抑制信号。
+
+有时，维纳滤波器也可以写成以下形式
+
+$
+  H(omega) = (P_x (omega) - P_v (omega)) / (P_x (omega))
+$
+
+== 2. Power Spectral Matching (PSM)
+
+MMSE 的优化准测在数学上是最优的，但是在听觉上并不一定是最优的。PSM 的优化目标是使得滤波器输出信号的功率谱与原始信号的功率谱尽可能匹配，由此推出的滤波器为
+
+$
+  hat(H) = sqrt(P_s / (P_s + P_v)) = sqrt((P_x (omega) - P_v (omega)) / (P_x (omega)))
+$
+
+== 3. Parametric Wiener filtering
+
+$
+  H_p (omega) = {(P_x (omega) - alpha P_v (omega)) / (P_x (omega))}^beta
+$
+
+通过对 $alpha$ 和 $beta$ 的调整，可以在 MMSE 和 PSM 之间进行权衡，以获得更好的听觉效果。
+
+
+== 4. 去混响：倒谱方法
+
+定义信号的倒谱为
+$
+  c_x (n) & = cal(F)^(-1) {log X(omega)} \
+          & = cal(F)^(-1) {log S(omega) + log H(omega)} \
+          & = c_s(n) + c_h(n)
+$
+
+语音信号的倒谱主要集中在靠近原点的低频区域，而混响的倒谱主要集中在高频区域
+
+== 5. 去混响：逆混响方法
+
+如果混响系统的冲激响应 $h(n)$ 是已知的，那么可以通过构造一个逆滤波器来去除混响的影响。对 FIR 来说，其逆是一个 IIR，可能不稳定，因此我们希望计算一个近似的 FIR 逆滤波器，并将其转化为一个最小二乘解的线性方程组问题。
+
+线性方程组为
+
+$
+  underbrace(
+    mat(
+      delim: "[",
+      1;
+      0;
+      dots.v;
+      0
+    ),
+    bold(upright(d))
+  )
+  =
+  underbrace(
+    mat(
+      delim: "[",
+      h[0], 0, dots.h, 0;
+      h[1], h[0], dots.down, dots.v;
+      dots.v, h[1], dots.down, 0;
+      h[N_h], dots.v, dots.down, h[0];
+      0, h[N_h], dots.down, h[1];
+      dots.v, dots.down, dots.down, dots.v;
+      0, dots.h, 0, h[N_h]
+    ),
+    bold(upright(H))
+  )
+  underbrace(
+    mat(
+      delim: "[",
+      g[0];
+      g[1];
+      dots.v;
+      g[N_g]
+    ),
+    bold(upright(g))
+  )
+$
+
+其近似解为：
+
+$
+  bold(upright(g))_(L S) = (bold(upright(H))^T bold(upright(H)))^(-1) bold(upright(H))^T bold(upright(d))
+$
