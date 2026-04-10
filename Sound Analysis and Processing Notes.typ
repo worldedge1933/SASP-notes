@@ -633,7 +633,7 @@ $
   image("media/Chap11/wiener_model.png", width: 70%),
 )
 
-其中 $s$ 是想要恢复的原始信号，$n$ 是噪声，$x$ 是观测到的受噪声污染的信号，$y = hat(s)$ 是滤波器输出的估计信号。
+其中 $s$ 是想要恢复的原始信号，$v$ 是噪声，$x$ 是观测到的受噪声污染的信号，$y = hat(s)$ 是滤波器输出的估计信号。
 
 维纳滤波的目标是找到一个线性滤波器 $h$，使得输出信号 $y$ 与原始信号 $s$ 之间的均方误差最小化：
 
@@ -735,8 +735,38 @@ $
 
 通过对 $alpha$ 和 $beta$ 的调整，可以在 MMSE 和 PSM 之间进行权衡，以获得更好的听觉效果。
 
+== 4. 短时傅里叶变换视角下的算法流程
 
-== 4. 去混响：倒谱方法
+#figure(
+  image("media/Chap11/STFT_Spectral_Attenuation.png", width: 90%),
+)
+
+其中 $G(t_a^u, Omega_k)$ 是 spectral attenuation function。
+
+$hat(P)_v$ 是噪声功率谱的估计，可以通过在没有信号的帧上计算平均功率谱来获得。
+
+$
+  hat(P)_v (Omega_k) = E [ |V(t_a^u, Omega_k)|^2 ]
+$
+
+Wiener Suppression Rule:
+$
+  G(t_a^u, Omega_k) = 1 - (hat(P)_v (Omega_k)) / (|X (t_a^u, Omega_k)|^2)
+$
+
+PSM Suppression Rule:
+
+$
+  G(t_a^u, Omega_k) = sqrt(1 - (hat(P)_v (Omega_k)) / (|X (t_a^u, Omega_k)|^2))
+$
+
+Parametric Suppression Rule:
+
+$
+  G(t_a^u, Omega_k) = {1 - alpha (hat(P)_v (Omega_k)) / (|X (t_a^u, Omega_k)|^2)}^beta
+$
+
+== 4. 去混响：倒谱方法 (Complex cepstrum)
 
 定义信号的倒谱为
 $
@@ -795,3 +825,107 @@ $
 $
   bold(upright(g))_(L S) = (bold(upright(H))^T bold(upright(H)))^(-1) bold(upright(H))^T bold(upright(d))
 $
+
+== 压缩与扩展
+
+== 6. 瞬时非线性系统对信号统计特性的影响
+
+音频信号 $U(n)$ 可以被视作随机过程，因此可以得到其相应的统计特性。
+
+Cumulative Probability Density Function (CPDF) 定义为
+
+$
+  F_U (u) eq.delta P[ U(n) <= u ]
+$
+
+对一个信号做瞬时非线性变换 $g(dot) $可以改变这个概率分布。
+
+#note[瞬时指当前输出只与当前输入有关]
+
+现在我们选取一个特殊的瞬时非线性函数
+
+$
+  g(dot) = F_U(dot)
+$
+
+$
+  V = g(U) = F_U(U) in UU[0,1 ]
+$
+
+这样处理后得到的是符合0-1均匀分布的随机过程
+
+现在我们有另一概率分布 $F_W$，现在我们希望让信号变成符合这个概率分布的随机过程。我们可以通过以下变换实现：
+
+$
+  W = F_W^(-1) (V) = F_W^(-1) (F_U(U))
+$
+
+== 7. 维纳滤波视角下的 Dolby NR
+
+Dolby NR 通过录音时动态增强容易受噪声影响的频段，播放时再反向还原信号，同时把后加入的高频噪声压低；从 Wiener filter 的角度看，这相当于一种面向低 SNR 区域的动态最优化处理。
+
+#figure(
+  image("media/Chap11/Dolby_NR.png", width: 90%),
+)
+
+预加重的意义是让维纳滤波的作用变得“无关紧要”。
+
+我们选取以下系统作为预加重系统和逆加重系统
+
+$
+  G = sqrt( P_v / P_s), space space F = sqrt(2) / G  = sqrt(2 P_s / P_v)
+$
+
+于是我们可以得到
+
+$
+  P_(overline(s)) (omega) = |G(omega)|^2 P_s (omega) = P_v (omega)
+$
+
+于是有
+
+$
+  H(omega) = (P_(overline(s)) (omega)) / (P_(overline(s)) (omega) + P_v (omega)) = 1/2
+$
+
+此外还有
+
+$
+  P_y (omega) = |H(omega)|^2 P_(x) (omega) = 1/2 P_v (omega) 
+$
+
+$
+  P_(hat(s)) = |F(omega)|^2 P_y (omega) = P_s (omega)
+$
+
+预加重往往是高通，逆加重是低通，作用强度取决于 SNR。
+
+由于每首歌的 $P_s$ 不同，因此工程上需要根据大量音频的统计特性来设计一个“通用版本”的预加重和逆加重系统。
+
+== 局部劣化的修复
+
+== 8. Modeling Clicks
+
+对局部退化有两种模型
+- Additive model: 适用于大多数常见表面缺陷，如小划痕、灰尘、脏污，因此可以近似成在原信号上叠加一个短时干扰
+- Replacement model: 适用于更严重的缺陷，如深划痕、断裂等，原内容视作是完全被替换掉了
+
+在这里，我们讨论 Additive model。公式为：
+
+$
+  x(n) = s(n) + i(n) v(n)
+$
+
+其中 $i(n)$ 是一个指示是否存在劣化的二值开关
+
+局部退化有以下特点：
+- 起始位置和持续时长随机，在 44.1 kHz 采样率下，长度可达200个采样点
+- i(n) 的值为 1 的位置通常是连续的，且在时间上相对稀疏
+- 幅度变化范围特别大
+
+#figure(
+  image("media/Chap11/click_restore_model.png", width: 90%),
+)
+
+Click 的修复方法通常分为检测和修复两步
+
