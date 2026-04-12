@@ -8,6 +8,9 @@
   numbering: none,
 )
 
+#set math.mat(delim: "[")
+
+
 #place(center, dy: 80mm)[
   #set text(size: 22pt, weight: "bold")
   #align(center)[Sound Analysis and Processing Notes]
@@ -928,4 +931,224 @@ $
 )
 
 Click 的修复方法通常分为检测和修复两步
+
+== 9. 基于AR模型的检测与修复
+
+
+#figure(
+  image("media/Chap11/AR_click_detec.png", width: 90%),
+)
+
+我们假设信号数据符合一个 AR(p) 模型，于是应该有
+$
+  s(n) = sum_(k=1)^p a_k s(n-k) + e(n)
+$
+
+$
+  H(z) = E(z) / S(z) = (1 - sum_(k=1)^p a_k z^(-k))
+$
+
+现在我们让劣化后的信号通过这个滤波器，得到
+
+$
+  e_d (n) & eq.delta x(n)*h(n) \
+          & = (s(n) + i(n) v(n)) * h(n) \
+          & = e(n) + i(n) v(n)*h(n) \
+$
+
+此外我们还有
+
+$
+  P_s (e^(j omega)) = P_e (e^(j omega))
+  abs(1 / (H(e^(j omega))))^2
+$
+
+#note[功率谱面积等于方差]
+
+$
+  2 pi sigma_s^2 & = integral_(-pi)^(pi) P_s (e^(j omega)) abs(1 / (H(e^(j omega))))^2 dif omega \
+                 & = sigma_e^2 integral_(-pi)^(pi) abs(1 / (H(e^(j omega))))^2 dif omega
+$
+
+于是
+
+$
+  sigma_e^2 = (2 pi sigma_s^2) / (integral_(-pi)^(pi) abs(1 / (H(e^(j omega))))^2 dif omega)
+$
+
+当没有局部劣化的时候，$sigma_e^2$应该稳定在一个小值附近；当有局部劣化的时候，$sigma_e^2$ 会突然增大。
+
+但是会带来“拖尾”效应，导致时间分辨率变差
+
+#underline[现在我们讨论如何获得滤波器系数]
+
+假设我们使用一段长为 $N$ 的音频数据来估计一个 AR(P) 模型的系数。
+
+不妨设输入序列为：
+$
+  bold(upright(x)) = mat(
+    x(1);
+    dots.v;
+    x(N)
+  ) = mat(
+    overline(bold(upright(x)));
+    hat(bold(upright(x)))
+  )
+$
+
+其中
+
+$
+  overline(bold(upright(x))) = mat(
+    x(1);
+    dots.v;
+    x(P)
+  ), space space
+  hat(bold(upright(x))) = mat(
+    x(P+1);
+    dots.v;
+    x(N)
+  )
+$
+
+于是，自回归模型 $x(n) = sum_(k=1)^P a_k x(n-k) + e(n)$可以转化为以下矩阵形式：
+
+$
+  hat(bold(upright(x))) & = mat(
+                            x(P+1);
+                            dots.v;
+                            x(N)
+                          ) \
+                        & = mat(
+                            sum_(k=1)^P a_k x(P+1-k);
+                            dots.v;
+                            sum_(k=1)^P a_k x(N-k)
+                          )
+                          + mat(
+                            e(P+1);
+                            dots.v;
+                            e(N)
+                          ) \
+                        & = mat(
+                            x(P), x(P-1), dots, x(1);
+                            x(P+1), x(P), dots, x(2);
+                            dots.v, dots.v, dots.down, dots.v;
+                            x(N-1), x(N-2), dots, x(N-P)
+                          ) mat(
+                            a_1;
+                            a_2;
+                            dots.v;
+                            a_P
+                          ) + mat(
+                            e(P+1);
+                            dots.v;
+                            e(N)
+                          ) \
+$
+
+记为
+
+$
+  hat(bold(upright(x))) = bold(upright(G_x)) bold(upright(a)) + bold(upright(e))
+$
+#note[这里略去基于高斯分布假设的贝叶斯概率推导]
+
+而优化目标则转为
+
+$
+  bold(upright(a))^(upright(M L))= min_(bold(upright(a))) (hat(bold(upright(x))) - bold(upright(G_x)) bold(upright(a)))^T (hat(bold(upright(x))) - bold(upright(G_x)) bold(upright(a))) = min_(bold(upright(a))) bold(upright(e))^T bold(upright(e))
+$
+
+$
+  (partial bold(upright(e))^T bold(upright(e))) / (partial bold(upright(a))) 
+  = 2 bold(upright(e))^T (partial bold(upright(e))) / (partial bold(upright(a)))
+  = 2 (hat(bold(upright(x))) - bold(upright(G_x)) bold(upright(a)))^T bold(upright(G_x))  = bold(0)
+$
+
+解得 
+
+$
+  bold(upright(a))^upright(M L) = (bold(upright(G_x))^T bold(upright(G_x)))^(-1) bold(upright(G_x))^T hat(bold(upright(x)))
+$
+
+#underline[现在我们讨论如何用 AR 模型来修复劣化]
+
+#figure(
+  image("media/Chap11/LSAR.png", width: 90%),
+)
+
+整体输入序列为
+
+$
+  bold(upright(x)) = mat(
+    overline(bold(upright(x)))_L;
+    hat(bold(upright(x)));
+    overline(bold(upright(x)))_R
+  )
+$
+
+已知数据序列为
+
+$
+  overline(bold(upright(x))) = mat(
+    overline(bold(upright(x)))_L;
+    overline(bold(upright(x)))_R
+  )
+$
+
+整体输入序列可以重写为以下形式
+
+$
+  bold(upright(x)) =& mat(
+    overline(bold(upright(x)))_L;
+    hat(bold(upright(x)));
+    overline(bold(upright(x)))_R
+  ) \
+  =& mat(
+    bold(0)_(m times l);
+    bold(upright(I))_(l times l);
+    bold(0)_((N-m-l) times l)
+  ) hat(bold(upright(x))) \
+  &+ mat(
+    bold(upright(I))_(m times m), bold(0)_(m times (N-m-l));
+    bold(0)_(l times m), bold(0)_(l times (N-m-l));
+    bold(0)_((N-m-l) times m), bold(upright(I))_((N-m-l) times (N-m-l))
+  ) mat(
+    overline(bold(upright(x)))_L;
+    overline(bold(upright(x)))_R
+  )\
+  &= bold(upright(U)) hat(bold(upright(x))) + bold(upright(K)) overline(bold(upright(x)))
+$
+
+$bold(upright(U))$ 和 $bold(upright(K))$ 是重排矩阵。
+
+#note[gap 部分不一定连续，只需对 $bold(upright(U))$ 和 $bold(upright(K))$ 进行适当调整即可。]
+
+
+
+在此我们定义一个新的矩阵
+
+$
+  bold(upright(A)) = mat(
+    -a_P, -a_(P-1), dots, -a_1, 1,0, dots, 0, dots, 0 ,0;
+    0, -a_P, dots, -a_2, -a_1, 1, dots, 0, dots, 0 ,0;
+    dots.v, dots.v,  , dots.v, dots.v, dots.v,  , dots.v,  , dots.v, dots.v;
+
+    0, 0, dots, 0, 0, 0, dots, -a_P, dots, -a_1, 1
+  ) 
+$
+
+并有
+
+$
+  hat(bold(upright(A))) = bold(upright(A)) bold(upright(U)), space space
+  overline(bold(upright(A))) = bold(upright(A)) bold(upright(K)) 
+$
+
+#note[这里我们略去推导，直接给出 LSAR (Least Squares AR) 的解。]
+
+$
+  hat(bold(upright(x)))_upright(L S) = - (hat(bold(upright(A)))^T hat(bold(upright(A))))^(-1) hat(bold(upright(A)))^T overline(bold(upright(A))) overline(bold(upright(x)))
+$
+
 
