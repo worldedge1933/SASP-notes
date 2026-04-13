@@ -1147,6 +1147,7 @@ $
 
 #note[这里我们略去推导，直接给出 LSAR (Least Squares AR) 的解。]
 
+
 $
   hat(bold(upright(x)))_upright(L S) = - (hat(bold(upright(A)))^T hat(bold(upright(A))))^(-1) hat(bold(upright(A)))^T overline(bold(upright(A))) overline(bold(upright(x)))
 $
