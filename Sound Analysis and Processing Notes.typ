@@ -1153,3 +1153,135 @@ $
 $
 
 
+= Chapter 12: Features and Classification
+
+本章不做总结
+
+= Chapter 13: Signal-Based Modeling
+
+== Non-parametric methods
+
+== 1. Additive synthesis
+
+以正弦波为振荡器的加法合成方法可以写成以下形式:
+
+$
+  y(t) = sum_(i=1)^N A_i (t) sin[omega_i (t) t + phi_i (t)]
+$
+
+== 2. 递推形式振荡器
+
+现在假设我们有一个定频振荡器 $y(n) = A sin(theta(n))$
+
+其相位为（使用 Phase wrapping）
+
+$
+  cases(
+    theta(n) = theta(n-1) + Delta theta text(",") text("if") theta <= 2 pi,
+    theta(0) = theta(n-1) + Delta theta - 2 pi text(",") text("if") theta > 2 pi
+  )
+$
+
+且有 
+
+$
+  Delta theta = 2 pi f_0 / F_s
+$
+
+未避免高额的三角函数开销，我们使用递推公式
+
+next sample = $2 cos(Delta theta)$ \* current sample - previous sample
+
+#note[
+$
+  cos(phi + theta) = 2 cos(theta) cos(phi) - cos(phi - theta)
+$
+]
+
+写成矩阵形式有
+
+$
+  mat(
+    y(n);
+    y(n-1)
+  ) = mat(
+    2 cos(Delta theta), -1;
+    1, 0
+  ) mat(
+    y(n-1);
+    y(n-2)
+  )
+$
+
+现在我们从这个递推公式提取更一般的二维状态空间模型
+
+$
+  mat(delim: "[", 
+  hat(x)_1;
+  hat(x)_2
+) =
+underbrace(
+  mat(delim: "[",
+    a, b;
+    c, d
+  ),
+  A
+)
+mat(delim: "[",
+  x_1;
+  x_2
+)
+$
+
+x_1 是对外输出的信号，x_2 是内部状态变量。
+
+结论有，当 $det A = 1$ 且 $|a + d| < 2$ 时，系统是一个振荡器。
+
+记初始状态为 $bold(upright(x))$，于是有
+
+$
+  bold(upright(y))(n) = bold(upright(A))^n bold(upright(x))
+$
+
+由特征值分解我们可以得到
+
+$
+  bold(upright(y))(n) = bold(upright(Q)) bold(upright(D))^n bold(upright(Q))^(-1) bold(upright(x))
+$
+
+而满足振荡器条件的矩阵的特征值有
+
+$
+  bold(upright(D)) = mat(
+    delim: "[",
+    e^(j Delta theta), 0;
+    0, e^(-j Delta theta)
+  ), space space theta = arccos((a + d) / 2)
+$
+
+$bold(upright(Q))$ 有
+
+$
+  bold(upright(Q)) = mat(
+    delim: "[",
+    1, 1;
+    psi e^(j phi.alt), psi e^(-j phi.alt)
+  ), space space psi = sqrt( (-c) / b)
+$
+
+$
+  phi.alt = angle eta, space space eta = (d - a + j sqrt(4 - (a+d)^2)) / (2b)
+$
+
+$bold(upright(Q))$ 是从内部空间到外部空间的映射
+
+$phi.alt$ 决定了两个输出变量 $y_1$ 和 $y_2$ 的相位差，而 $psi$ 决定了它们的幅度关系。相等幅度会带来 $b=-c$.
+
+振荡器也可以用以下系统图表示
+
+#figure(
+  image("media/Chap13/DSP_oscillator.png", width: 90%),
+)
+
+== 3. 递推振荡器的动态调控
+
