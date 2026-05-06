@@ -1373,4 +1373,126 @@ $
 + 先生成一个直接的锯齿波
 + 对其平方得到抛物线波
 + 将其通过一阶差分 FIR $1-z^(-1)$
++ 调制其幅度至所需
 
+== 7. 方波的直接合成法
+方波：
+$
+  s(n) = text("sign") (sin(2 pi f_0 / F_s n))
+$
+
+频谱：
+
+$
+  S(n) = 4 / pi sum_(k=1)^infinity (sin[(2k-1) 2 pi f_0 / F_s n] / (2k-1))
+$
+
+
+== 8. 三角波的直接合成法
+三角波：
+
+$
+  s(n) = 2/pi arcsin[ sin(2 pi f_0 / F_s n) ] - 1
+$
+
+其频谱为
+
+$
+  S(k) = 8 / pi^2 sum_(k=1)^infinity (-1)^(k-1) (sin[(2k-1) 2 pi f_0 / F_s n] / k^2)
+$
+
+== 9. 源-滤波器合成法
+
+一个声音可以拆成两步合成，source 和 filter，往往均通过时变参数控制
+
+== 10. Nonlinear modeling
+
+线性系统只能“改已有的频谱”，不能凭空“生出新的频率”；
+要想产生新频率成分、做频移、做更复杂的音色变化，就必须用非线性变换。
+
+非线性映射，哪怕是“瞬时非线性”（instantaneous nonlinearity），也会显著改变声音本质。
+
+== 11. Harmonic distortion
+
+非线性系统会引入谐波失真（harmonic distortion），即在输出中产生输入信号频率的整数倍的频率成分。
+
+假如输入为 $x(n) = A cos(omega_0 n)$
+
+输出为 $y(n) = sum_(k=0)^N A_k cos(k omega_0 n)$
+
+定量衡量这种失真效果的指标是 Total Harmonic Distortion (THD)，定义为
+
+$
+  text("THD") = sqrt(sum_(k=2)^N A_k^2) / sqrt(sum_(k=1)^N A_k^2)
+$
+
+== 12. Wavsshaping
+
+Waveshaping 是一种无记忆非线性系统，逐样本对信号幅值进行映射
+
+== 13. overdrive and distortion
+
+Overdrive（过载）是一个音乐术语，指一种“基本上接近线性”的处理，但当输入动态很大时，它会被推入非线性区域。
+
+Distortion（失真）指真正明显的非线性处理。
+
+== 13. Multiplicative synthesis
+
+乘法合成又称环形调制 (ring modulation)，是指将两个信号相乘来产生新的频率成分的合成方法。
+
+$
+  s(n) = x(n) * y(n)
+$
+
+$
+  S(omega) = [X_1 * X_2](omega)
+$
+
+往往 $x(n)$ 是一个正弦载波信号 $c(n)$，$x_2(n)$ 往往是一个调制信号 $m(n)$，相乘后得到
+
+$
+  S(omega) = 1/2 [M(omega - omega_c) e^(j phi.alt_c) + M(omega + omega_c) e^(-j phi.alt_c)]
+$
+
+调制后得到的频谱，是原始信号的频谱 $M(omega)$ 的两份拷贝。如果 $M(omega)$ 的频率成分超过了载波频率 $omega_c$，就会发生混叠失真。
+
+如果两个信号均为周期信号，且分别有频率 $omega_c$ 和 $omega_m$，如果有以下关系成立
+
+$
+  omega_c / omega_m = p / q, space space p, q in NN
+$
+
+另一种变种是 Amplitude Modulation (AM)，区别是保留了载波频率成分，即
+
+$
+  s(n) = (1 + alpha m(n)) * c(n)
+$
+
+$
+  S(omega) = C(omega) + alpha / 2 [M(omega - omega_c) e^(j phi.alt_c) + M(omega + omega_c) e^(-j phi.alt_c)]
+$
+
+== 14. Synthesis by frequency modulation
+
+FM 合成不是从真实声音的物理/信号模型直接推导出来的。控制参数数量不多，计算成本低。但不太适合从真实声音直接拟合参数。
+
+FM 的直接形式为
+$
+  s(n) = a(n) sin(omega_c (n) n + phi.alt(n))
+$
+
+递推形式为
+
+$
+  phi(n) = phi(n-1) + omega_c (n)n + phi.alt(n)
+$
+
+基本的一种 FM 调制方式是使用一个正弦去调制另一个正弦，即
+
+$
+  phi.alt(n) = I(n) sin(omega_m (n) n)
+$
+
+$
+  s(n) = a(n) sin(omega_c (n) n + phi.alt(n))
+$
