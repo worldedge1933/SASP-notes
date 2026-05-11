@@ -1496,3 +1496,378 @@ $
 $
   s(n) = a(n) sin(omega_c (n) n + phi.alt(n))
 $
+
+
+= Chapter 14 Digital Audio Effects
+
+== 1. EQ 分类
+
++ Lowpass：削弱高于$f_c$的频率，让低频通过。
++ Highpass：削弱低于$f_c$的频率，让高频通过。
++ Bandpass: 只保留某个频带$[f_(c l), f_(c h)]$内的频率，削弱这个范围外的频率。
++ Bandreject: 削弱某个频带$[f_(c l), f_(c h)]$ 内的频率，让这个范围外的频率通过。
++ Notch：削弱 $f_c$附近一个很窄的频率范围。
++ Resonator：增强 $f_c$附近一个很窄的频率范围。
++ Allpass：所有频率的幅度基本都通过，不明显增强或削弱任何频率，但会改变相位。
+
+#figure(
+  image("media/Chap14/EQ_classfication.png", width: 90%),
+)
+
+此外还有两种无阻带的eq分类
++ Shelving：搁架滤波器可以看成是由低通/高通滤波器加上一条直接通路构成的。
++ Peaking：峰值滤波器可以看成是由带通滤波器加上一条直接通路构成的。
+
+#figure(
+  image("media/Chap14/EQ_classfication2.png", width: 90%),
+)
+
+
+== 2. 一阶 shelving 滤波器
+
+一阶 shelving 滤波器的结构如下
+
+#figure(
+  image("media/Chap14/first_order_shelving.png", width: 90%),
+)
+
+公式为
+
+$
+  H(z) = 1 + H_0 / 2 [1 plus.minus A(z)]
+$
+
+其中，A(z) 是一个一阶全通滤波器，+ 对应低频 shelving，- 对应高频 shelving。
+
+$
+  A(z) = (a + z^(-1)) / (1 + a z^(-1))
+$
+
+根据目标增益 $G_(text("dB"))$ 和截止频率 $f_c$，我们可以计算出相应参数的值
+
+$
+  H_0 = V_0 - 1, space space V_0 = 10^(G_(text("dB")) / 20)
+$
+
+对于低频 shelving 滤波器($Omega_c = 2 pi f_c / F_s$)：
+
+$
+  a = (tan(Omega_c / 2) - 1) / (tan(Omega_c / 2) + 1), space space text("for") G_(text("dB")) > 0
+$
+
+$
+  a = (tan(Omega_c / 2) - V_0) / (tan(Omega_c / 2) + V_0), space space text("for") G_(text("dB")) < 0
+$
+
+对于高频 shelving 滤波器：
+
+$
+  a = (tan(Omega_c / 2) - 1) / (tan(Omega_c / 2) + 1), space space text("for") G_(text("dB")) > 0
+$
+
+$
+  a = (V_0 tan(Omega_c / 2) - 1) / (V_0 tan(Omega_c / 2) + 1), space space text("for") G_(text("dB")) < 0
+$
+
+== 3. 二阶 peaking 滤波器
+
+二阶 peaking 滤波器的结构如下
+
+#figure(
+  image("media/Chap14/second_order_peak.png", width: 90%),
+)
+
+公式为
+
+$
+  H(z) = 1 + H_0 / 2 [1 - A_2 (z)]
+$
+
+其中，$A_2(z)$ 是一个二阶全通滤波器
+
+$
+  A_2(z) = (-a + d(1-a) z^(-1) + z^(-2)) / (1 + d(1-a) z^(-1) -a z^(-2))
+$
+
+根据目标增益 $G_(text("dB"))$、中心频率 $f_c$ 和带宽 $f_b$，我们可以计算出相应参数的值
+
+$
+  H_0 = V_0 - 1, space space V_0 = 10^(G_(text("dB")) / 20)
+$
+
+中心频率 $Omega_c = 2 pi f_c / F_s$：
+
+$
+  d = -cos(Omega_c)
+$
+
+带宽 $Omega_b = 2 pi f_b / F_s$：
+
+$
+  a = (tan(Omega_b / 2) - 1) / (tan(Omega_b / 2) + 1), space space text("for") G_(text("dB")) > 0
+$
+
+$
+  a = (tan(Omega_b / 2) - V_0) / (tan(Omega_b / 2) + V_0), space space text("for") G_(text("dB")) < 0
+$
+
+== 4. Delay
+
+离散情况下的 Delay 的公式是
+
+$
+  y(n) = x(n - D)
+$
+
+但是有很多情况，D不是一个整数，这个时候Delay问题实际就转为重采样问题
+
+在频域视角下，Delay 的频率响应为
+
+$
+  H_(text("id")) = e^(-i omega D)
+$
+
+其中，$omega = 2 pi f/f_s$。可以观察到频率响应的模始终为1，但具有线性相位 $D omega$
+
+Delay 也分群delay和相delay(phase delay)，分别为
+
+$
+  tau_g (omega) = - (partial angle H_(text("id"))(omega)) / (partial omega)
+$
+
+$
+  tau_p (omega) = - (angle H_(text("id"))(omega)) / omega
+$
+
+对于理想的 Delay，群 delay 和相 delay 都等于 D。
+
+接下来我们转入时域视角，理想时延的时域响应为
+
+$
+  h_(text("id"))(n) = sinc(n - D)
+$
+
+当 D 是整数时，sinc 函数在 n = D 处取值为1，在其他整数处取值为0，因此退化为
+
+$
+  h_(text("id"))(n) = delta(n - D)
+$
+
+在实际实现中，需要将这个无限长且非因果的响应近似为一个能用的有限长且因果的响应。于是我们需要找到一组有限长度系数 $h(n)$，让 FIR 滤波器尽可能像理想分数延迟。
+
+即寻找一个 z 域 N 阶 FIR 滤波器
+
+$
+  H(z) = sum_(n=0)^N h(n) z^(-n)
+$
+
+并尽可能最小化其误差
+
+$
+  E(omega) = H(e^(j omega))- H_(text("id"))(omega)
+$
+
+相应的方法有：
++ Least Squares Method
++ GLS Method
++ Windowing Methods
++ Lagrange Interpolation Method
+
+== 6. Least-square FIR
+
+这一方法的目标是最小化误差的平方和，即$||E(omega)||^2_2$
+
+由帕塞尔定理我们知道
+
+$
+  ||E(omega)||^2_2 = & ||H(e^(j omega)) - H_(text("id"))(omega)||^2_2 \
+                   = & 1/(2 pi) integral_(-pi)^(pi) |H(e^(j omega)) - H_(text("id"))(omega)|^2 dif omega \
+                   = & sum_(n= - infinity)^(infinity) |h(n) - h_(text("id"))(n)|^2
+$
+
+容易知道，h(n) 的最佳解为
+
+$
+  h(n) =
+  cases(
+    h_(text("id"))(n) text(",") text("if") 0 <= n <= N,
+    0 text(",") text("otherwise")
+  )
+$
+
+实际确定阶数 N 的时候，最好让其围绕 $sinc$ 的峰对称，即
+$
+  text("round") - N/2 = 0, space space text("for") N text("even")
+$
+
+$
+  floor(D) - (N-1)/2 = 0, space space text("for") N text("odd")
+$
+
+这种方法虽然计算简单，但是会引发 Gibbs phenomenon，导致频率响应出现振铃效应。（这种方法本质上是乘了矩形窗）其中增益部分在反馈系统中容易出现问题。
+
+== 7. 窗函数法
+
+通过给原始的理想响应乘上一个窗函数来得到一个有限长的响应
+
+$
+  h(n) =
+  cases(
+    h_(text("id"))(n) w(n-D) text(",") text("if") 0 <= n <= N,
+    0 text(",") text("otherwise")
+  )
+$
+
+窗的对称轴往往和 $sinc$ 的峰对齐。这种方法会增大误差，但是能减小振铃效应。具体的效果取决于具体的窗函数的选择。
+
+== 8. GLS Method (General Least Squares)
+
+这一方法的目标是最小化误差的加权平方和，即
+
+$
+  ||E(omega)||^2_2 = & 1/(2 pi) integral_(-alpha pi)^(alpha pi) W(omega) |H(e^(j omega)) - H_(text("id"))(omega)|^2 d omega \
+$
+
+给频率重要性加权，不太关心 Nyquist 频率附近的误差。
+
+== 8. Lagrange interpolation method
+
+拉格朗日插值法的出发点是让误差函数在 $omega_0=0$ 处足够平坦，即
+
+$
+  (d^l E(omega)) / (d omega^l) |_(omega=0) = 0, space space l = 0, 1, dots, N
+$
+
+在这里我们略去推导。
+
+问题转化为
+
+$
+  sum_(n=0)^N h(n) n^l = D^l, space space l = 0, 1, dots, N
+$
+
+变成了 N+1 个方程的线性系统。矩阵形式为
+$
+  bb(upright(V)) bb(upright(h)) = bb(upright(v))
+$
+
+
+$
+  mat(
+    1, 1, dots, 1;
+    0^1, 1^1, dots, N^1;
+    dots.v, dots.v, dots, dots.v;
+    0^N, 1^N, dots, N^N
+  ) mat(
+    h(0);
+    h(1);
+    dots.v;
+    h(N)
+  ) = mat(
+    D^0;
+    D^1;
+    dots.v;
+    D^N
+  ) = bold(upright(D))
+$
+
+于是
+
+$
+  upright(bb(h)) = upright(bb(V))^(-1) upright(bb(D))
+$
+
+或者有
+
+$
+  h(n) = Pi_(k=0, k eq.not n)^N (D - k) / (n - k), space space n = 0, 1, dots, N
+$
+
+一般要求 $N > floor(D)$。
+
+对于 $N=1$的情况，退化为线性插值法
+
+$
+  h(0) = 1 - D, space space h(1) = D
+$
+
+奇数阶 N：相位更好，但高频幅度有问题。在 Nyquist 频率处，幅度响应会有一个零点
+
+偶数阶 N：幅度更好，但相位更差
+
+== 9. Feedforward delay line
+
+Feedforward delay line (前馈延迟线) 是 Delay-based effect 的一种。差分方程为
+
+$
+  y(n) = x(n) + g x(n-M), space space M = floor(tau f_s)
+$
+
+传递函数为
+
+$
+  H(z) = 1 + g z^(-M)
+$
+
+当 $g > 0$ 时，所有 $1/tau$ 的整数倍频率都被增强；当 $g < 0$ 时，所有 $1/tau$ 的整数倍频率都被削弱。因此产生了梳状滤波器的效果。
+
+如果 $tau$ 很大，听到的是两个声音的叠加；如果 $tau$ 很小，则听到的是一个声音的频谱被梳状滤波器修饰后的效果。
+
+== 10. Feedback delay line
+
+Feedback delay line (反馈延迟线) 的差分方程为
+
+$
+  y(n) = c x(n) + g y(n-M), space space M = floor(tau f_s)
+$
+
+传递函数为
+
+$
+  H(z) = c / (1 - g z^(-M))
+$
+
+缩放系数 $c$ 是必要的，否则信号会被无限放大。自然也要求 $|g| < 1$，否则系统会不稳定。
+
+== 11. 通用梳状滤波效果器
+
+将前面两种 delay line 结合起来，就得到了通用梳状滤波器的结构
+
+#figure(
+  image("media/Chap14/universal_comb.png", width: 90%),
+)
+
+其传递函数为
+
+$
+  H(z) = (B L +  F F dot z^(-M))/ (1 - F B dot z^(-M))
+$
+
+
+效果器种类与系数的对应关系为
+
+#table(
+  columns: 4,
+  align: (left, center, center, center),
+  stroke: 0.6pt,
+  inset: (x: 6pt, y: 7pt),
+  table.header[*效果器*][*BL*][*FB*][*FF*],
+  [FIR comb filter], [X], [0], [X],
+  [IIR comb filter], [1], [X], [0],
+  [all pass], [a], [-a], [1],
+  [delay], [0], [0], [1],
+)
+
+将多个pipeline并联起来，就得到了一个多梳状滤波器的结构
+
+#figure(
+  image("media/Chap14/parallel_comb.png", width: 90%),
+)
+
+其中，一个pipeline可以反馈给另一个pipeline，因此系数变成了 N x N 的矩阵
+
+== 12. Leslie speaker
+
+不做总结
+
+
